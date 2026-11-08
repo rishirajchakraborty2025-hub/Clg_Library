@@ -68,7 +68,24 @@ function chatAnswer(text){
   const q=normalizeAsk(text),exam=inferExam(q);
   if(!q)return {intro:'Tell me a title, author, book ID, subject, or exam.'};
   if(/^(hi|hello|hey|help|what can you do)/.test(q))return {intro:`I can search ${app.books.length} registered titles, check how many copies are currently available, and compare preparation books for GATE, UPSC, SSC, CAT, JEE, NEET and placements. Try a specific title or one of the example questions below.`};
-  if(exam){
+  
+const libraryKeywords =
+  /\b(book|books|author|title|library|novel|story|fiction|read|reading|available|availability|copy|copies|stock|borrow|issue|return|recommend|suggest|gate|upsc|ssc|cat|jee|neet|exam|exams|preparation|dsa|dbms|algorithms)\b/;
+
+const irrelevantTopics =
+  /\b(weather|lunch|breakfast|dinner|joke|sports|cricket|football|recipe|president|politics)\b/;
+
+const generalQuestion =
+  /^(how|what|who|why|when|where|tell me|explain|write|solve|calculate)\b/;
+
+if (
+  !libraryKeywords.test(q) &&
+  (irrelevantTopics.test(q) || generalQuestion.test(q))
+) {
+  return {intro: 'not relevant prompt'};
+}
+
+   if(exam){
     const profile=EXAM_RECS[exam];
     const recs=profile.books.map(([id,reason])=>({book:bookOf(id),reason})).filter(x=>x.book && normalizeAsk(x.book.title)===normalizeAsk(LUMEN_CATALOG.find(b=>b.id===x.book.id)?.title||''));
     const available=recs.filter(x=>x.book.availableCopies>0),out=recs.filter(x=>x.book.availableCopies===0);
@@ -88,6 +105,11 @@ function chatAnswer(text){
     const named=top.length===1?'I found a matching title.':'These titles are the closest matches in our collection.';
     return {intro:`${named} Copy counts are read directly from the current inventory.`,books:top,kind:'search'};
   }
+   
+if (!libraryKeywords.test(q)) {
+  return {intro: 'not relevant prompt'};
+}
+
   return {intro:`I couldn't locate a reliable match for “${text.trim()}” among the ${app.books.length} registered titles. Try the author, a shorter title, a subject such as “DBMS”, or an exam like “GATE CSE”. I won't claim the library holds a book unless it appears in the catalog.`};
 }
 function chatWelcome(){return {role:'assistant',intro:`Welcome to the Lumen reading desk. Ask whether a book is available, explore fiction, or get a subject-wise shortlist for competitive exams. All stock numbers come from the library's current records.`}}
@@ -127,9 +149,28 @@ function renderAdminTable(){const node=$('#adminInventory');if(node)node.innerHT
 document.addEventListener('click',event=>{
   const btn=event.target.closest('[data-chat-toggle],[data-chat-prompt],[data-admin-turn]');if(!btn)return;
   if(btn.dataset.adminTurn){app.adminPage+=btn.dataset.adminTurn==='next'?1:-1;renderAdminTable();return}
-  if(btn.dataset.chatToggle){toggleChat(btn.dataset.chatToggle==='open');return}
+  
+if (btn.dataset.chatToggle) {
+  if (btn.dataset.chatToggle === 'open') {
+    app.chatHistory = [];
+  }
+
+  toggleChat(btn.dataset.chatToggle === 'open');
+  return;
+}
+
   if(btn.dataset.chatPrompt){sendChat(btn.dataset.chatPrompt);return}
 });
+
+document.addEventListener('click', event => {
+  const assistantLink =
+    event.target.closest('[data-page="assistant"]');
+
+  if (assistantLink) {
+    app.chatHistory = [];
+  }
+}, true);
+
 document.addEventListener('submit',event=>{
   const form=event.target.closest('[data-chat-form]');if(!form)return;
   event.preventDefault();const input=form.elements.namedItem('message');sendChat(input.value);input.value='';input.focus();
